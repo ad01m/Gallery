@@ -3,9 +3,9 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Gallery — Your Personal Photo Space",
-  description: "A beautiful dark-themed personal gallery app",
+  description: "A simple, private space to organise and browse your photos.",
   manifest: "/manifest.json",
-  themeColor: "#7c3aed",
+  themeColor: "#f6f5f1",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -13,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <link rel="manifest" href="/manifest.json"/>
-        <meta name="theme-color" content="#7c3aed"/>
+        <meta name="theme-color" content="#f6f5f1"/>
         <meta name="apple-mobile-web-app-capable" content="yes"/>
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
       </head>
