@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
-  getPhotos, savePhotos, getAlbums, saveAlbums, getTrash, saveTrash,
+  getPhotos, savePhotos, savePhotosStrict, getAlbums, saveAlbums, getTrash, saveTrash,
   generateId, fileToDataUrl, getImageDimensions, autoTagPhoto, hashPin, requestPersistentStorage
 } from "../lib/storage";
 import { Photo, Album, ViewMode, SortBy, FilterBy, NavSection } from "../types";
@@ -45,36 +45,87 @@ export function useGallery() {
   }, []);
 
   // ── Upload ──────────────────────────────────────────
-  const uploadFiles = useCallback(async (files: FileList | File[]) => {
-    const arr = Array.from(files).filter(f => f.type.startsWith("image/"));
-    if (!arr.length) { showToast("Koi image nahi mili!", "error"); return; }
-    setIsUploading(true); setUploadPct(0);
+  const uploadFiles = useCallback(async (files: FileList | File[]): Promise<boolean> => {
+    const arr = Array.from(files).filter(file => file.type.startsWith("image/"));
+    if (!arr.length) { showToast("Please select valid image files.", "error"); return false; }
+    setIsUploading(true);
+    setUploadPct(0);
     const newPhotos: Photo[] = [];
-    for (let i = 0; i < arr.length; i++) {
-      try {
-        const url  = await fileToDataUrl(arr[i]);
-        const dims = await getImageDimensions(url);
+    try {
+      for (let i = 0; i < arr.length; i++) {
+        const file = arr[i];
+        let url = "";
+        let width = 0;
+        let height = 0;
+        let storedSize = file.size;
+        try {
+          const bitmap = await createImageBitmap(file);
+          const scale = Math.min(1, 2200 / Math.max(bitmap.width, bitmap.height));
+          const canvas = document.createElement("canvas");
+          canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+          canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+          const context = canvas.getContext("2d");
+          if (!context) throw new Error("Image canvas is unavailable.");
+          context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+          bitmap.close();
+          const blob = await new Promise<Blob>((resolve, reject) => {
+            canvas.toBlob(result => result ? resolve(result) : reject(new Error("Image compression failed.")), "image/webp", 0.84);
+          });
+          url = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result));
+            reader.onerror = () => reject(reader.error || new Error("Could not read image."));
+            reader.readAsDataURL(blob);
+          });
+          width = canvas.width;
+          height = canvas.height;
+          storedSize = blob.size;
+        } catch (compressionError) {
+          console.warn("Using original image because compression was unavailable:", compressionError);
+          url = await fileToDataUrl(file);
+          const dimensions = await getImageDimensions(url);
+          width = dimensions.width;
+          height = dimensions.height;
+        }
         newPhotos.push({
-          id: generateId(), name: arr[i].name.replace(/\.[^/.]+$/, ""),
-          url, thumbnailUrl: url, size: arr[i].size,
-          width: dims.width, height: dims.height,
+          id: generateId(),
+          name: file.name.replace(/\.[^/.]+$/, ""),
+          url,
+          thumbnailUrl: url,
+          size: storedSize,
+          width,
+          height,
           createdAt: new Date().toISOString(),
           albumId: activeAlbumId || undefined,
-          tags: autoTagPhoto(arr[i].name), favorite: false,
+          tags: autoTagPhoto(file.name),
+          favorite: false,
         });
         setUploadPct(Math.round(((i + 1) / arr.length) * 100));
-      } catch { /* skip */ }
+      }
+
+      const updatedPhotos = [...newPhotos, ...photos];
+      await savePhotosStrict(updatedPhotos);
+      setPhotos(updatedPhotos);
+      if (activeAlbumId) {
+        setAlbums(prev => {
+          const updated = prev.map(album => album.id === activeAlbumId
+            ? { ...album, photoCount: album.photoCount + newPhotos.length }
+            : album);
+          saveAlbums(updated);
+          return updated;
+        });
+      }
+      showToast(`${newPhotos.length} photo${newPhotos.length > 1 ? "s" : ""} successfully added.`);
+      return true;
+    } catch (error) {
+      console.error("Photo upload failed:", error);
+      showToast(error instanceof Error ? error.message : "Upload failed. Please try again.", "error");
+      return false;
+    } finally {
+      setIsUploading(false);
+      setUploadPct(0);
     }
-    setPhotos(prev => { const u = [...newPhotos, ...prev]; savePhotos(u); return u; });
-    if (activeAlbumId) {
-      setAlbums(prev => {
-        const u = prev.map(a => a.id === activeAlbumId ? { ...a, photoCount: a.photoCount + newPhotos.length } : a);
-        saveAlbums(u); return u;
-      });
-    }
-    setIsUploading(false);
-    showToast(`${newPhotos.length} photo${newPhotos.length>1?"s":""} upload ho gaye! 🎉`);
-  }, [activeAlbumId, showToast]);
+  }, [activeAlbumId, photos, showToast]);
 
   // ── Trash / Delete ──────────────────────────────────
   const moveToTrash = useCallback((ids: string[]) => {
