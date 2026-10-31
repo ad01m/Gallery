@@ -2,6 +2,7 @@
 import { useState, useCallback } from "react";
 import { useGallery } from "./hooks/useGallery";
 import Sidebar from "./components/Sidebar";
+import ThemeToggle from "./components/ThemeToggle";
 import TopBar from "./components/TopBar";
 import PhotoCard from "./components/PhotoCard";
 import { AlbumCard, CreateAlbumModal, PinModal } from "./components/AlbumCard";
@@ -89,6 +90,7 @@ export default function Home() {
 
   return (
     <div className="app-layout">
+      <ThemeToggle />
       {/* Sidebar */}
       <Sidebar
         navSection={g.navSection}
