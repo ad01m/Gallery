@@ -26,7 +26,7 @@ export default function Sidebar({ navSection, onNav, photoCount, albumCount, fav
 
   useEffect(() => {
     const saved = localStorage.getItem("gallery-theme");
-    const nextTheme = saved === "light" ? "light" : "dark";
+    const nextTheme = saved === "dark" ? "dark" : "light";
     setTheme(nextTheme);
     document.documentElement.dataset.theme = nextTheme;
   }, []);
