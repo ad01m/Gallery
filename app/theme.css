@@ -107,3 +107,50 @@ html, body { background:var(--bg-base); color:var(--text-primary); font-family:I
   .masonry { columns:2; column-gap:9px; }
   .photo-card { margin-bottom:9px; }
 }
+
+
+/* Always-visible theme control, including narrow screens where the sidebar collapses. */
+.global-theme-toggle {
+  position: fixed;
+  z-index: 500;
+  top: 13px;
+  right: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 7px;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0,0,0,.05);
+}
+.global-theme-toggle:hover { border-color: var(--accent); background: var(--bg-hover); }
+.global-theme-toggle span:first-child { font-size: 16px; line-height: 1; }
+.topbar { padding-right: 150px; }
+:root[data-theme="dark"] .topbar { background: var(--bg-base); }
+:root[data-theme="dark"] .search-box,
+:root[data-theme="dark"] .list-row,
+:root[data-theme="dark"] .album-card,
+:root[data-theme="dark"] .stat-card,
+:root[data-theme="dark"] .modal-box,
+:root[data-theme="dark"] .ctx-menu,
+:root[data-theme="dark"] .btn-ghost,
+:root[data-theme="dark"] .btn-icon,
+:root[data-theme="dark"] .input,
+:root[data-theme="dark"] .view-toggle { background: var(--bg-card); color: var(--text-primary); border-color: var(--border); }
+:root[data-theme="dark"] .photo-card { background: var(--bg-card); }
+:root[data-theme="dark"] .list-row:hover,
+:root[data-theme="dark"] .btn-ghost:hover,
+:root[data-theme="dark"] .btn-icon:hover { background: var(--bg-hover); }
+:root[data-theme="dark"] .upload-zone { background: var(--bg-surface); border-color: var(--border-strong); }
+:root[data-theme="dark"] .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+@media(max-width:768px) {
+  .global-theme-toggle { top: 10px; right: 12px; }
+  .topbar { padding-right: 14px; padding-top: 56px; }
+}
