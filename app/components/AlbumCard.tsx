@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Album } from "../types";
-import { hashPin, verifyPin } from "../lib/storage";
+import { verifyPin } from "../lib/storage";
 
 const COLORS = ["#7c3aed","#a855f7","#ec4899","#f43f5e","#f97316","#eab308","#22c55e","#0ea5e9"];
 

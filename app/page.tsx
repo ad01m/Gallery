@@ -15,6 +15,7 @@ import SelectionBar from "./components/SelectionBar";
 import ContextMenu from "./components/ContextMenu";
 import UploadModal from "./components/UploadModal";
 import Toast from "./components/Toast";
+import Slideshow from "./components/Slideshow";
 import { Album, ContextMenuState } from "./types";
 import { exportAsZip } from "./lib/storage";
 
@@ -151,6 +152,9 @@ export default function Home() {
 
             {g.navSection === "albums" && (
               <button className="btn-primary" onClick={() => setShowCreateAlbum(true)}>+ New Album</button>
+            )}
+            {(g.navSection === "gallery" || g.navSection === "favorites") && filteredPhotos.length > 0 && (
+              <button className="btn-ghost" onClick={() => setShowSlideshow(true)}>▶ Slideshow</button>
             )}
           </div>
 
@@ -341,6 +345,9 @@ export default function Home() {
           }}
           onClose={() => setPinAlbum(null)}/>
       )}
+
+      {/* ── Slideshow ───────────────────────────────────────────────────── */}
+      {showSlideshow && <Slideshow photos={filteredPhotos} onClose={() => setShowSlideshow(false)}/>}
 
       {/* ── Toast ────────────────────────────────────────────────────────── */}
       {g.toast && <Toast message={g.toast.msg} type={g.toast.type}/>}

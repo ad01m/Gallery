@@ -20,7 +20,7 @@ export default function TrashView({ trash, onRestore, onPermanentDelete, onEmpty
       <div className="empty-state">
         <div className="empty-icon">🗑️</div>
         <h2 className="empty-title">Trash Khali Hai!</h2>
-        <p className="empty-sub">Deleted photos yahan aayenge. 30 din baad automatically delete ho jaayenge.</p>
+        <p className="empty-sub">Deleted photos yahan milenge. Aap unhe restore ya permanently delete kar sakte ho.</p>
       </div>
     );
   }

@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Photo } from "../types";
 
 interface PhotoEditorProps {
@@ -18,7 +18,7 @@ export default function PhotoEditor({ photo, onSave, onClose }: PhotoEditorProps
   const [flipV,      setFlipV]      = useState(false);
   const [saving,     setSaving]     = useState(false);
 
-  const draw = () => {
+  const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -37,9 +37,9 @@ export default function PhotoEditor({ photo, onSave, onClose }: PhotoEditorProps
       ctx.restore();
     };
     img.src = photo.url;
-  };
+  }, [photo.url, rotation, flipH, flipV, brightness, contrast, saturation]);
 
-  useEffect(() => { draw(); }, [brightness, contrast, saturation, rotation, flipH, flipV]);
+  useEffect(() => { draw(); }, [draw]);
 
   const handleSave = () => {
     setSaving(true);

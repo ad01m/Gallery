@@ -42,10 +42,14 @@ export default function TagManager({ photos, allTags, onAddTag, onRemoveTag }: T
       <div style={{ flex:1 }}>
         {selectedTag ? (
           <>
-            <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:16 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:16,flexWrap:"wrap" }}>
               <span className="tag" style={{ fontSize:14,padding:"6px 14px" }}>#{selectedTag}</span>
               <span style={{ color:"var(--text-muted)",fontSize:13 }}>{taggedPhotos.length} photos</span>
             </div>
+            <form onSubmit={e=>{e.preventDefault();const tag=newTag.trim().toLowerCase().replace(/^#/,"");if(!tag)return;taggedPhotos.forEach(photo=>onAddTag(photo.id,tag));setNewTag("");}} style={{ display:"flex",gap:8,marginBottom:16,maxWidth:440 }}>
+              <input className="input" value={newTag} onChange={e=>setNewTag(e.target.value)} placeholder="New tag for these photos..."/>
+              <button className="btn-primary" type="submit" disabled={!newTag.trim()}>Add Tag</button>
+            </form>
             <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:10 }}>
               {taggedPhotos.map(photo => (
                 <div key={photo.id} style={{ borderRadius:12,overflow:"hidden",background:"var(--bg-card)",

@@ -135,13 +135,19 @@ export function useGallery() {
   }, []);
 
   const movePhotosToAlbum = useCallback((photoIds: string[], albumId: string | null) => {
-    setPhotos(prev => { const u = prev.map(p => photoIds.includes(p.id) ? {...p, albumId: albumId||undefined} : p); savePhotos(u); return u; });
-    if (albumId) {
-      setAlbums(prev => { const u = prev.map(a => a.id===albumId ? {...a, photoCount: a.photoCount+photoIds.length} : a); saveAlbums(u); return u; });
+    const moving = photos.filter(photo => photoIds.includes(photo.id));
+    setPhotos(prev => { const u = prev.map(p => photoIds.includes(p.id) ? {...p, albumId: albumId || undefined} : p); savePhotos(u); return u; });
+    const countChanges = new Map<string, number>();
+    moving.forEach(photo => {
+      if (photo.albumId && photo.albumId !== albumId) countChanges.set(photo.albumId, (countChanges.get(photo.albumId) || 0) - 1);
+      if (albumId && photo.albumId !== albumId) countChanges.set(albumId, (countChanges.get(albumId) || 0) + 1);
+    });
+    if (countChanges.size) {
+      setAlbums(prev => { const u = prev.map(album => countChanges.has(album.id) ? { ...album, photoCount: Math.max(0, album.photoCount + (countChanges.get(album.id) || 0)) } : album); saveAlbums(u); return u; });
     }
     setSelectedIds([]);
-    showToast(`${photoIds.length} photo${photoIds.length>1?"s":""} move ho gaye!`);
-  }, [showToast]);
+    showToast(`${moving.length} photo${moving.length>1?"s":""} move ho gaye!`);
+  }, [photos, showToast]);
 
   // ── Selection ────────────────────────────────────────
   const toggleSelect  = useCallback((id: string) => setSelectedIds(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]), []);
