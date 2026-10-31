@@ -1,34 +1,103 @@
 import { Photo, Album } from "../types";
 
-const PHOTOS_KEY  = "gal_photos";
-const ALBUMS_KEY  = "gal_albums";
-const TRASH_KEY   = "gal_trash";
+const DB_NAME = "gallery-private-db";
+const DB_VERSION = 1;
+const STORE_NAME = "gallery-data";
+const LEGACY_KEYS = { photos: "gal_photos", albums: "gal_albums", trash: "gal_trash" } as const;
 
-// ── Photos ────────────────────────────────────────────
-export function getPhotos(): Photo[] {
-  try { return JSON.parse(localStorage.getItem(PHOTOS_KEY) || "[]"); } catch { return []; }
-}
-export function savePhotos(p: Photo[]) {
-  localStorage.setItem(PHOTOS_KEY, JSON.stringify(p));
-}
+type Collection = keyof typeof LEGACY_KEYS;
 
-// ── Albums ────────────────────────────────────────────
-export function getAlbums(): Album[] {
-  try { return JSON.parse(localStorage.getItem(ALBUMS_KEY) || "[]"); } catch { return []; }
-}
-export function saveAlbums(a: Album[]) {
-  localStorage.setItem(ALBUMS_KEY, JSON.stringify(a));
-}
-
-// ── Trash ─────────────────────────────────────────────
-export function getTrash(): Photo[] {
-  try { return JSON.parse(localStorage.getItem(TRASH_KEY) || "[]"); } catch { return []; }
-}
-export function saveTrash(t: Photo[]) {
-  localStorage.setItem(TRASH_KEY, JSON.stringify(t));
+function openDatabase(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") {
+      reject(new Error("IndexedDB is not available in this browser."));
+      return;
+    }
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Could not open local photo storage."));
+  });
 }
 
-// ── Helpers ───────────────────────────────────────────
+async function readCollection<T>(key: Collection): Promise<T> {
+  try {
+    const db = await openDatabase();
+    const value = await new Promise<T | undefined>((resolve, reject) => {
+      const request = db.transaction(STORE_NAME, "readonly").objectStore(STORE_NAME).get(key);
+      request.onsuccess = () => resolve(request.result as T | undefined);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    if (value !== undefined) return value;
+
+    // One-time migration from the older localStorage-based version.
+    const legacy = typeof localStorage !== "undefined" ? localStorage.getItem(LEGACY_KEYS[key]) : null;
+    const migrated = legacy ? JSON.parse(legacy) as T : [] as T;
+    if (legacy) {
+      await writeCollection(key, migrated);
+      localStorage.removeItem(LEGACY_KEYS[key]);
+    }
+    return migrated;
+  } catch (error) {
+    console.error("Gallery local storage read failed:", error);
+    try {
+      return (JSON.parse(localStorage.getItem(LEGACY_KEYS[key]) || "[]") as T);
+    } catch {
+      return [] as T;
+    }
+  }
+}
+
+async function writeCollection<T>(key: Collection, value: T): Promise<void> {
+  try {
+    const db = await openDatabase();
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(STORE_NAME, "readwrite");
+      transaction.objectStore(STORE_NAME).put(value, key);
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+      transaction.onabort = () => reject(transaction.error || new Error("Storage transaction aborted."));
+    });
+    db.close();
+    // Remove any old duplicate once the IndexedDB write is safely committed.
+    if (typeof localStorage !== "undefined") localStorage.removeItem(LEGACY_KEYS[key]);
+  } catch (error) {
+    console.error("Gallery could not save data locally:", error);
+    // Keep the legacy fallback working if IndexedDB is unavailable.
+    try { localStorage.setItem(LEGACY_KEYS[key], JSON.stringify(value)); } catch { /* quota may also be full */ }
+  }
+}
+
+export const getPhotos = () => readCollection<Photo[]>("photos");
+export const savePhotos = (photos: Photo[]) => writeCollection("photos", photos);
+export const getAlbums = () => readCollection<Album[]>("albums");
+export const saveAlbums = (albums: Album[]) => writeCollection("albums", albums);
+export const getTrash = () => readCollection<Photo[]>("trash");
+export const saveTrash = (trash: Photo[]) => writeCollection("trash", trash);
+
+export async function getLocalStorageEstimate(): Promise<{ usage: number; quota: number } | null> {
+  try {
+    if (!navigator.storage?.estimate) return null;
+    const estimate = await navigator.storage.estimate();
+    return { usage: estimate.usage || 0, quota: estimate.quota || 0 };
+  } catch {
+    return null;
+  }
+}
+
+export async function requestPersistentStorage(): Promise<boolean> {
+  try {
+    if (!navigator.storage?.persist) return false;
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
+}
+
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
@@ -68,21 +137,12 @@ export function getImageDimensions(url: string): Promise<{ width: number; height
 export function autoTagPhoto(name: string): string[] {
   const lower = name.toLowerCase();
   const map: Record<string, string[]> = {
-    selfie: ["selfie","portrait"],
-    sunset: ["sunset","sky","nature"],
-    beach:  ["beach","ocean","travel"],
-    mountain:["mountain","nature","travel"],
-    food:   ["food"],
-    birthday:["birthday","celebration"],
-    wedding:["wedding","celebration"],
-    family: ["family","people"],
-    dog:    ["dog","pet"],
-    cat:    ["cat","pet"],
-    travel: ["travel"],
-    screenshot:["screenshot"],
-    night:  ["night","dark"],
-    snow:   ["snow","winter"],
-    flower: ["flower","nature"],
+    selfie: ["selfie","portrait"], sunset: ["sunset","sky","nature"],
+    beach: ["beach","ocean","travel"], mountain:["mountain","nature","travel"],
+    food:["food"], birthday:["birthday","celebration"], wedding:["wedding","celebration"],
+    family:["family","people"], dog:["dog","pet"], cat:["cat","pet"], travel:["travel"],
+    screenshot:["screenshot"], night:["night","dark"], snow:["snow","winter"],
+    flower:["flower","nature"],
   };
   const tags: string[] = [];
   for (const [k, v] of Object.entries(map)) if (lower.includes(k)) tags.push(...v);
@@ -94,7 +154,6 @@ export function getTotalStorageUsed(photos: Photo[]): number {
 }
 
 export function hashPin(pin: string): string {
-  // Simple encode - not cryptographically secure but functional
   return btoa(pin + "_gallery_pin");
 }
 
@@ -108,7 +167,6 @@ export async function exportAsZip(photos: Photo[]): Promise<void> {
   const folder = zip.folder("gallery-export")!;
   for (const photo of photos) {
     try {
-      // Extract base64 from data URL
       const base64 = photo.url.split(",")[1];
       const ext = photo.url.split(";")[0].split("/")[1] || "jpg";
       folder.file(`${photo.name}.${ext}`, base64, { base64: true });
