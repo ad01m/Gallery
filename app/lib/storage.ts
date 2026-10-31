@@ -52,28 +52,39 @@ async function readCollection<T>(key: Collection): Promise<T> {
   }
 }
 
-async function writeCollection<T>(key: Collection, value: T): Promise<void> {
+async function writeCollectionStrict<T>(key: Collection, value: T): Promise<void> {
+  let db: IDBDatabase | undefined;
   try {
-    const db = await openDatabase();
+    db = await openDatabase();
     await new Promise<void>((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, "readwrite");
+      const transaction = db!.transaction(STORE_NAME, "readwrite");
       transaction.objectStore(STORE_NAME).put(value, key);
       transaction.oncomplete = () => resolve();
       transaction.onerror = () => reject(transaction.error);
       transaction.onabort = () => reject(transaction.error || new Error("Storage transaction aborted."));
     });
-    db.close();
-    // Remove any old duplicate once the IndexedDB write is safely committed.
     if (typeof localStorage !== "undefined") localStorage.removeItem(LEGACY_KEYS[key]);
   } catch (error) {
     console.error("Gallery could not save data locally:", error);
-    // Keep the legacy fallback working if IndexedDB is unavailable.
-    try { localStorage.setItem(LEGACY_KEYS[key], JSON.stringify(value)); } catch { /* quota may also be full */ }
+    try {
+      if (typeof localStorage === "undefined") throw error;
+      localStorage.setItem(LEGACY_KEYS[key], JSON.stringify(value));
+    } catch {
+      throw new Error("Photo storage is full or unavailable. Try fewer/smaller photos, or free browser storage space.");
+    }
+  } finally {
+    db?.close();
   }
+}
+
+async function writeCollection<T>(key: Collection, value: T): Promise<void> {
+  try { await writeCollectionStrict(key, value); }
+  catch (error) { console.error("Gallery could not save data locally:", error); }
 }
 
 export const getPhotos = () => readCollection<Photo[]>("photos");
 export const savePhotos = (photos: Photo[]) => writeCollection("photos", photos);
+export const savePhotosStrict = (photos: Photo[]) => writeCollectionStrict("photos", photos);
 export const getAlbums = () => readCollection<Album[]>("albums");
 export const saveAlbums = (albums: Album[]) => writeCollection("albums", albums);
 export const getTrash = () => readCollection<Photo[]>("trash");
