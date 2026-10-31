@@ -18,7 +18,7 @@ export default function UploadModal({ onUpload, onClose, disabled }: UploadModal
       const saved = await onUpload(e.dataTransfer.files);
       if (saved) onClose();
     }
-  }, [onUpload, onClose]);
+  }, [onUpload, onClose, disabled]);
 
   const handleChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -30,11 +30,11 @@ export default function UploadModal({ onUpload, onClose, disabled }: UploadModal
   }, [onUpload, onClose]);
 
   return (
-    <div className="modal-backdrop anim-fadeIn" onClick={e => e.target===e.currentTarget && onClose()}>
+    <div className="modal-backdrop anim-fadeIn" onClick={e => !disabled && e.target===e.currentTarget && onClose()}>
       <div className="modal-box anim-scaleUp" style={{ width:480 }}>
         <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
           <h2 className="modal-title" style={{ marginBottom:0 }}>📤 Photos Upload Karo</h2>
-          <button onClick={onClose} className="btn-icon">✕</button>
+          <button onClick={onClose} className="btn-icon" disabled={disabled}>✕</button>
         </div>
 
         <div ref={zoneRef} className="upload-zone"
