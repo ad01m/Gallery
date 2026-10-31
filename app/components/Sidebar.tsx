@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import { NavSection } from "../types";
 
 interface SidebarProps {
@@ -21,6 +22,22 @@ const navItems: { id: NavSection; icon: string; label: string; badge?: keyof Sid
 ];
 
 export default function Sidebar({ navSection, onNav, photoCount, albumCount, favCount, trashCount, onUpload }: SidebarProps) {
+  const [theme, setTheme] = useState<"light" | "dark">("dark");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("gallery-theme");
+    const nextTheme = saved === "light" ? "light" : "dark";
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    document.documentElement.dataset.theme = nextTheme;
+    localStorage.setItem("gallery-theme", nextTheme);
+  };
+
   const badges: Partial<Record<NavSection, number>> = {
     gallery:   photoCount,
     favorites: favCount,
@@ -63,6 +80,11 @@ export default function Sidebar({ navSection, onNav, photoCount, albumCount, fav
           {trashCount > 0 && <span className="nav-badge" style={{ background:"var(--danger-light)", color:"var(--danger)" }}>{trashCount}</span>}
         </button>
       </div>
+
+      <button className="theme-toggle" onClick={toggleTheme} type="button">
+        <span>{theme === "dark" ? "☀" : "☾"}</span>
+        {theme === "dark" ? "Switch to light" : "Switch to dark"}
+      </button>
 
       {/* Upload button */}
       <button className="sidebar-upload-btn" onClick={onUpload}>
