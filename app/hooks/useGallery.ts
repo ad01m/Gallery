@@ -47,46 +47,65 @@ export function useGallery() {
   // ── Upload ──────────────────────────────────────────
   const uploadFiles = useCallback(async (files: FileList | File[]): Promise<boolean> => {
     const arr = Array.from(files).filter(file => file.type.startsWith("image/"));
-    if (!arr.length) { showToast("Please select valid image files.", "error"); return false; }
+    if (!arr.length) {
+      showToast("Choose JPG, PNG, WebP or another supported image file.", "error");
+      return false;
+    }
     setIsUploading(true);
     setUploadPct(0);
     const newPhotos: Photo[] = [];
+
     try {
-      for (let i = 0; i < arr.length; i++) {
-        const file = arr[i];
-        let url = "";
+      for (let index = 0; index < arr.length; index++) {
+        const file = arr[index];
+        let url: string;
         let width = 0;
         let height = 0;
         let storedSize = file.size;
+
+        // Decode with the browser's image element for broad compatibility.
+        const originalUrl = await fileToDataUrl(file);
+        const dimensions = await getImageDimensions(originalUrl);
+        if (!dimensions.width || !dimensions.height) {
+          throw new Error(`Could not read image: ${file.name}`);
+        }
+
         try {
-          const bitmap = await createImageBitmap(file);
-          const scale = Math.min(1, 2200 / Math.max(bitmap.width, bitmap.height));
+          const image = new Image();
+          image.src = originalUrl;
+          await image.decode();
+          const scale = Math.min(1, 1800 / Math.max(image.naturalWidth, image.naturalHeight));
           const canvas = document.createElement("canvas");
-          canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-          canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+          canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+          canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
           const context = canvas.getContext("2d");
-          if (!context) throw new Error("Image canvas is unavailable.");
-          context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-          bitmap.close();
-          const blob = await new Promise<Blob>((resolve, reject) => {
-            canvas.toBlob(result => result ? resolve(result) : reject(new Error("Image compression failed.")), "image/webp", 0.84);
-          });
-          url = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result));
-            reader.onerror = () => reject(reader.error || new Error("Could not read image."));
-            reader.readAsDataURL(blob);
-          });
-          width = canvas.width;
-          height = canvas.height;
-          storedSize = blob.size;
-        } catch (compressionError) {
-          console.warn("Using original image because compression was unavailable:", compressionError);
-          url = await fileToDataUrl(file);
-          const dimensions = await getImageDimensions(url);
+          if (!context) throw new Error("Your browser could not prepare this image.");
+          context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+          // Use WebP when supported; otherwise keep the original file data.
+          const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, "image/webp", 0.78));
+          if (blob && blob.type === "image/webp") {
+            url = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(String(reader.result));
+              reader.onerror = () => reject(new Error("Could not finish preparing the image."));
+              reader.readAsDataURL(blob);
+            });
+            width = canvas.width;
+            height = canvas.height;
+            storedSize = blob.size;
+          } else {
+            url = originalUrl;
+            width = dimensions.width;
+            height = dimensions.height;
+          }
+        } catch (processingError) {
+          console.warn("Image optimization skipped; keeping original image.", processingError);
+          url = originalUrl;
           width = dimensions.width;
           height = dimensions.height;
         }
+
         newPhotos.push({
           id: generateId(),
           name: file.name.replace(/\.[^/.]+$/, ""),
@@ -100,32 +119,37 @@ export function useGallery() {
           tags: autoTagPhoto(file.name),
           favorite: false,
         });
-        setUploadPct(Math.round(((i + 1) / arr.length) * 100));
+        setUploadPct(Math.round(((index + 1) / arr.length) * 100));
       }
 
-      const updatedPhotos = [...newPhotos, ...photos];
+      // Read current storage immediately before writing, so an earlier render cannot overwrite photos.
+      const currentPhotos = await getPhotos();
+      const updatedPhotos = [...newPhotos, ...currentPhotos];
       await savePhotosStrict(updatedPhotos);
       setPhotos(updatedPhotos);
+
       if (activeAlbumId) {
-        setAlbums(prev => {
-          const updated = prev.map(album => album.id === activeAlbumId
+        setAlbums(previous => {
+          const updated = previous.map(album => album.id === activeAlbumId
             ? { ...album, photoCount: album.photoCount + newPhotos.length }
             : album);
           saveAlbums(updated);
           return updated;
         });
       }
-      showToast(`${newPhotos.length} photo${newPhotos.length > 1 ? "s" : ""} successfully added.`);
+
+      showToast(`${newPhotos.length} photo${newPhotos.length === 1 ? "" : "s"} added to your gallery.`);
       return true;
     } catch (error) {
-      console.error("Photo upload failed:", error);
-      showToast(error instanceof Error ? error.message : "Upload failed. Please try again.", "error");
+      console.error("Gallery upload error:", error);
+      const message = error instanceof Error ? error.message : "Upload failed. Please try again.";
+      showToast(message, "error");
       return false;
     } finally {
       setIsUploading(false);
       setUploadPct(0);
     }
-  }, [activeAlbumId, photos, showToast]);
+  }, [activeAlbumId, showToast]);
 
   // ── Trash / Delete ──────────────────────────────────
   const moveToTrash = useCallback((ids: string[]) => {
