@@ -71,25 +71,41 @@ export function useGallery() {
   // ── Trash / Delete ──────────────────────────────────
   const moveToTrash = useCallback((ids: string[]) => {
     const now = new Date().toISOString();
+    const removedFromAlbums = new Map<string, number>();
+    photos.filter(photo => ids.includes(photo.id) && photo.albumId).forEach(photo => {
+      const albumId = photo.albumId!;
+      removedFromAlbums.set(albumId, (removedFromAlbums.get(albumId) || 0) + 1);
+    });
     setPhotos(prev => {
       const trashItems = prev.filter(p => ids.includes(p.id)).map(p => ({ ...p, deletedAt: now }));
       const remaining  = prev.filter(p => !ids.includes(p.id));
       setTrash(t => { const u = [...trashItems, ...t]; saveTrash(u); return u; });
       savePhotos(remaining); return remaining;
     });
+    if (removedFromAlbums.size) {
+      setAlbums(prev => { const u = prev.map(album => removedFromAlbums.has(album.id) ? { ...album, photoCount: Math.max(0, album.photoCount - (removedFromAlbums.get(album.id) || 0)) } : album); saveAlbums(u); return u; });
+    }
     setSelectedIds([]);
     showToast(`${ids.length} photo${ids.length>1?"s":""} Trash mein gaye 🗑️`, "info");
-  }, [showToast]);
+  }, [photos, showToast]);
 
   const restoreFromTrash = useCallback((ids: string[]) => {
+    const restoredToAlbums = new Map<string, number>();
+    trash.filter(photo => ids.includes(photo.id) && photo.albumId).forEach(photo => {
+      const albumId = photo.albumId!;
+      restoredToAlbums.set(albumId, (restoredToAlbums.get(albumId) || 0) + 1);
+    });
     setTrash(prev => {
       const restore = prev.filter(p => ids.includes(p.id)).map(p => { const r={...p}; delete r.deletedAt; return r; });
       const remaining = prev.filter(p => !ids.includes(p.id));
       setPhotos(pp => { const u = [...restore, ...pp]; savePhotos(u); return u; });
       saveTrash(remaining); return remaining;
     });
+    if (restoredToAlbums.size) {
+      setAlbums(prev => { const u = prev.map(album => restoredToAlbums.has(album.id) ? { ...album, photoCount: album.photoCount + (restoredToAlbums.get(album.id) || 0) } : album); saveAlbums(u); return u; });
+    }
     showToast(`${ids.length} photo${ids.length>1?"s":""} restore ho gaye ✅`);
-  }, [showToast]);
+  }, [trash, showToast]);
 
   const permanentDelete = useCallback((ids: string[]) => {
     setTrash(prev => { const u = prev.filter(p => !ids.includes(p.id)); saveTrash(u); return u; });
