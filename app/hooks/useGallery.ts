@@ -26,9 +26,16 @@ export function useGallery() {
   useEffect(() => {
     if (init.current) return;
     init.current = true;
-    setPhotos(getPhotos());
-    setAlbums(getAlbums());
-    setTrash(getTrash());
+    let cancelled = false;
+    Promise.all([getPhotos(), getAlbums(), getTrash()]).then(([savedPhotos, savedAlbums, savedTrash]) => {
+      if (cancelled) return;
+      setPhotos(savedPhotos);
+      setAlbums(savedAlbums);
+      setTrash(savedTrash);
+    }).catch(error => {
+      console.error("Could not load the local gallery:", error);
+    });
+    return () => { cancelled = true; };
   }, []);
 
   const showToast = useCallback((msg: string, type: "success"|"error"|"info" = "success") => {
