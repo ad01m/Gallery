@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   getPhotos, savePhotos, getAlbums, saveAlbums, getTrash, saveTrash,
-  generateId, fileToDataUrl, getImageDimensions, autoTagPhoto, hashPin
+  generateId, fileToDataUrl, getImageDimensions, autoTagPhoto, hashPin, requestPersistentStorage
 } from "../lib/storage";
 import { Photo, Album, ViewMode, SortBy, FilterBy, NavSection } from "../types";
 
@@ -27,6 +27,7 @@ export function useGallery() {
     if (init.current) return;
     init.current = true;
     let cancelled = false;
+    void requestPersistentStorage(); // Ask the browser to protect this site's local data from automatic eviction.
     Promise.all([getPhotos(), getAlbums(), getTrash()]).then(([savedPhotos, savedAlbums, savedTrash]) => {
       if (cancelled) return;
       setPhotos(savedPhotos);
