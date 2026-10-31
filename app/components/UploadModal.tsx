@@ -2,7 +2,7 @@
 import { useRef, useCallback } from "react";
 
 interface UploadModalProps {
-  onUpload: (files: FileList | File[]) => void;
+  onUpload: (files: FileList | File[]) => Promise<boolean>;
   onClose: () => void;
   disabled?: boolean;
 }
@@ -11,14 +11,22 @@ export default function UploadModal({ onUpload, onClose, disabled }: UploadModal
   const inputRef = useRef<HTMLInputElement>(null);
   const zoneRef  = useRef<HTMLDivElement>(null);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     zoneRef.current?.classList.remove("drag");
-    if (e.dataTransfer.files.length) { onUpload(e.dataTransfer.files); onClose(); }
+    if (!disabled && e.dataTransfer.files.length) {
+      const saved = await onUpload(e.dataTransfer.files);
+      if (saved) onClose();
+    }
   }, [onUpload, onClose]);
 
-  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files?.length) { onUpload(e.target.files); onClose(); }
+  const handleChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files?.length) {
+      const saved = await onUpload(files);
+      if (saved) onClose();
+      e.target.value = "";
+    }
   }, [onUpload, onClose]);
 
   return (
